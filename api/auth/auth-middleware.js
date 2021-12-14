@@ -1,3 +1,6 @@
+const bcrypt = require('bcryptjs')
+const User = require('../users/users-model')
+
 /*
   If the user does not have a session saved in the server
 
@@ -6,8 +9,15 @@
     "message": "You shall not pass!"
   }
 */
-function restricted() {
-
+function restricted(req, res, next) {
+  if (!req.session.user) {
+    next({
+      status: 401,
+      message: 'You shall not pass!'
+    })
+  } else (
+    next()
+  )
 }
 
 /*
@@ -18,8 +28,16 @@ function restricted() {
     "message": "Username taken"
   }
 */
-function checkUsernameFree() {
-
+async function checkUsernameFree(req, res, next) {
+  const { username } = req.body
+  const [user] = await User.findBy({ username })
+  if (user) {
+    return next({
+      status: 422,
+      message: 'Username taken'
+    })
+  }
+  next()
 }
 
 /*
@@ -30,8 +48,16 @@ function checkUsernameFree() {
     "message": "Invalid credentials"
   }
 */
-function checkUsernameExists() {
-
+async function checkUsernameExists(req, res, next) {
+  const { username } = req.body
+  const [user] = await User.findBy({ username })
+  if (!user) {
+    return next({
+      status: 401,
+      message: 'Invalid credentials'
+    })
+  }
+  next()
 }
 
 /*
@@ -42,8 +68,36 @@ function checkUsernameExists() {
     "message": "Password must be longer than 3 chars"
   }
 */
-function checkPasswordLength() {
+function checkPasswordLength(req, res, next) {
+  const { password } = req.body
+  // const [user] = await User.findBy({ username })
+  if (!password || password.length < 4) {
+    return next({
+      status: 422,
+      message: 'Password must be longer than 3 chars'
+    })
+  }
+  next()
+}
 
+async function passwordCheck(req, res, next) {
+  const { username, password } = req.body
+  const [user] = await User.findBy({ username })
+  const comparePassword = bcrypt.compareSync(password, user.password)
+  if (!comparePassword) {
+    return next({
+      status: 401,
+      message: 'Invalid credentials'
+    })
+  }
+  next()
 }
 
 // Don't forget to add these to the `exports` object so they can be required in other modules
+module.exports = {
+  restricted,
+  checkUsernameFree,
+  checkUsernameExists,
+  checkPasswordLength,
+  passwordCheck,
+}
